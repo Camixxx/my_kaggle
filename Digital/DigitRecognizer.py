@@ -1,11 +1,14 @@
+# coding=utf-8
 import csv
+import os
 import mxnet as mx
 import numpy as np
 
 import logging
 import argparse
 
-PATH = "C:/Users/CamiXXX/Desktop/code/kaggel/Digital/"
+# PATH = "C:/Users/CamiXXX/Desktop/code/kaggel"
+PATH = os.getcwd() + "/"
 
 
 def nn_train():
@@ -13,7 +16,7 @@ def nn_train():
         全链接神经网络识别手写体 """
 
     # 训练数据读取：Read csv
-    csv_reader = csv.reader(open(PATH+"train.csv", encoding='utf-8'))
+    csv_reader = csv.reader(open(PATH + "/Digital/train.csv", encoding='utf-8'))
     train_csv = []
     train_label = []
     # train的第一列是label, 后面42000列是数据
@@ -29,10 +32,9 @@ def nn_train():
     #     print([batch.data, batch.pad])
 
     # 测试数据读取
-    csv_reader_test = csv.reader(open(PATH + "test.csv", encoding='utf-8'))
-    test_csv = [row for row in csv_reader_test] # test没有label,直接取;但是第一行同样是表头，要略过
+    csv_reader_test = csv.reader(open(PATH + "/Digital/test.csv", encoding='utf-8'))
+    test_csv = [row for row in csv_reader_test]  # test没有label,直接取;但是第一行同样是表头，要略过
     test_iter = mx.io.NDArrayIter(np.asarray(test_csv[1:]), batch_size=20)
-
 
     # 网络搭建 Define the  MLP network.
     mlp = mx.symbol.Variable('data')
@@ -43,13 +45,15 @@ def nn_train():
     mlp = mx.symbol.FullyConnected(mlp, name='fc3', num_hidden=10)
     mlp = mx.symbol.SoftmaxOutput(mlp, name='softmax')
     mx.viz.plot_network(mlp)
-    print("Finish the network:"+str(mlp))
+    print("Finish the network:" + str(mlp))
 
-    # 建立Mod，并绑定网络mlp,并自己开始训练
+    # 建立Mod，并绑定网络mlp,
     mod = mx.mod.Module(symbol=mlp,
-                        context=mx.cpu(),
+                        context=mx.gpu(),
                         data_names=['data'],
                         label_names=['softmax_label'])
+
+    # # 自己开始训练的写法
     # # 申请空间：allocate memory given the input data and label shapes
     # mod.bind(data_shapes=train_iter.provide_data,
     #          label_shapes=train_iter.provide_label, )
@@ -74,19 +78,103 @@ def nn_train():
     # construct a callback function to save checkpoints
     model_prefix = 'mx_mlp'
     checkpoint = mx.callback.do_checkpoint(model_prefix)
-    mod.fit(train_iter, num_epoch=5, epoch_end_callback=checkpoint)
+    mod.fit(train_iter, num_epoch=15, epoch_end_callback=checkpoint)
 
     # 预测
-    predict_res = mod.predict(test_iter)
+    predict_res = mod.predict(test_iter, 20)
     # 处理预测结果
     test_label = []
     for each in predict_res:
-        test_label.append(mx.ndarray.argmax(each,0))
+        test_label.append(int(mx.ndarray.argmax(each, 0).asscalar()))
 
-    print(test_label)
+    print(test_label[0:1])
     # print(predict_res[0:4])
     # score = mod.score(train_iter, ['acc'])
     # print("Accuracy score is %f" % (score[0][1]))
+
+    # Write
+    with open("Digital/res_epoch15.csv", "w") as resFile:
+        csv_writer = csv.writer(resFile)
+        csv_writer.writerow(['ImageId', 'Label'])
+        index = 1
+        for label in test_label:
+            csv_writer.writerow([index, label])
+            index += 1
+
+    return
+
+
+
+def cnn_train():
+    """ MLP network architecture for MNIST
+        CNN神经网络识别手写体 """
+
+    # 训练数据读取：Read csv
+    csv_reader = csv.reader(open(PATH + "/Digital/train.csv", encoding='utf-8'))
+    train_csv = []
+    train_label = []
+    # train的第一列是label, 后面42000列是数据
+    for row in csv_reader:
+        train_csv.append(row[1:])
+        train_label.append(row[0])
+    # Read csv using mxnet iter
+    # train_csv和label的第一项都是csv的表头，不是数据，所以略过第一行
+    train_iter = mx.io.NDArrayIter(np.asarray(train_csv[1:]), np.asarray(train_label[1:]), batch_size=20)
+    # Debug 查看Iter
+    # for batch in train_iter:
+    #     print("batch_debug:")
+    #     print([batch.data, batch.pad])
+
+    # 测试数据读取
+    csv_reader_test = csv.reader(open(PATH + "/Digital/test.csv", encoding='utf-8'))
+    test_csv = [row for row in csv_reader_test]  # test没有label,直接取;但是第一行同样是表头，要略过
+    test_iter = mx.io.NDArrayIter(np.asarray(test_csv[1:]), batch_size=20)
+
+    # 网络搭建 Define the  MLP network.
+    mlp = mx.symbol.Variable('data')
+    mlp = mx.symbol.FullyConnected(mlp, name='fc1', num_hidden=128)
+    mlp = mx.symbol.Activation(mlp, name='relu1', act_type="relu")
+    mlp = mx.symbol.FullyConnected(mlp, name='fc2', num_hidden=64)
+    mlp = mx.symbol.Activation(mlp, name='relu1', act_type="relu")
+    mlp = mx.symbol.FullyConnected(mlp, name='fc3', num_hidden=10)
+    mlp = mx.symbol.SoftmaxOutput(mlp, name='softmax')
+    mx.viz.plot_network(mlp)
+    print("Finish the network:" + str(mlp))
+
+    # 建立Mod，并绑定网络mlp,
+    mod = mx.mod.Module(symbol=mlp,
+                        context=mx.gpu(),
+                        data_names=['data'],
+                        label_names=['softmax_label'])
+
+    # 训练：使用mod.fit自动绑定和训练
+    # construct a callback function to save checkpoints
+    model_prefix = 'mx_mlp'
+    checkpoint = mx.callback.do_checkpoint(model_prefix)
+    mod.fit(train_iter, num_epoch=5, epoch_end_callback=checkpoint)
+
+    # 预测
+    predict_res = mod.predict(test_iter, 20)
+    # 处理预测结果
+    test_label = []
+    for each in predict_res:
+        test_label.append(int(mx.ndarray.argmax(each, 0).asscalar()))
+
+    print(test_label[0:1])
+    # print(predict_res[0:4])
+    # score = mod.score(train_iter, ['acc'])
+    # print("Accuracy score is %f" % (score[0][1]))
+
+    # Write
+    with open("Digital/res_epoch5_cnn.csv", "w") as resFile:
+        csv_writer = csv.writer(resFile)
+        csv_writer.writerow(['ImageId', 'Label'])
+        index = 1
+        for label in test_label:
+            csv_writer.writerow([index, label])
+            index += 1
+
+    return
 
 if __name__ == '__main__':
     nn_train()
