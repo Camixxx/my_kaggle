@@ -173,11 +173,11 @@ def cnn_train():
     # 初始化随机参数：initialize parameters by uniform random numbers
     mod.init_params(initializer=mx.init.Uniform(scale=.1))
     # 使用学习率为0.1的随机梯度下降：use SGD with learning rate 0.1 to train
-    mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.1),))
+    mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.08),))
     # 精确度：use accuracy as the metric
     metric = mx.metric.create('acc')
     # 训练：train 5 epochs, i.e. going over the data iter one pass
-    for epoch in range(8):
+    for epoch in range(10):
         train_iter.reset()
         metric.reset()
         for batch in train_iter:
@@ -189,7 +189,7 @@ def cnn_train():
 
 
     # 预测
-    predict_res = mod.predict(test_iter, 20)
+    predict_res = mod.predict(test_iter)
     # 处理预测结果
     test_label = []
     for each in predict_res:
