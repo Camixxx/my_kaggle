@@ -42,7 +42,7 @@ def mlp():
 
 
 def train():
-    train_iter, test_iter = get_iter()
+    train_iter, test_iter = csv_iter()
 
     # 建立Mod，并绑定网络mlp,并自己开始训练
     mod = mx.mod.Module(symbol=mlp(),
